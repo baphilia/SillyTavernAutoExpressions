@@ -4,20 +4,67 @@ import shutil
 from PIL import Image
 import base64
 import json
+import struct
 
 # emotions = ['admiration', 'amusement', 'anger', 'annoyance', 'approval', 'caring', 'confusion', 'curiosity', 'desire', 'disappointment', 'disapproval', 'disgust', 'embarrassment', 'excitement', 'fear', 'gratitude', 'grief', 'joy', 'love', 'nervousness', 'neutral', 'optimism', 'pride', 'realization', 'relief', 'remorse', 'sadness', 'surprise']
 emotions = ['anger', 'fear', 'joy', 'love', 'sadness', 'surprise']
 
+
+
+def get_character_name(chunk_data):
+    prefix = b"chara\x00"
+    length = len(prefix)
+    decoded_data = base64.b64decode(chunk_data[length:]).decode('utf-8')
+    json_data = json.loads(decoded_data)
+    if "name" in json_data:
+        return json_data["name"]
+    return "Name not found"
+
 def extract_name_from_metadata(file_path):
-    with Image.open(file_path) as img:
-        metadata = img.info
-        for key, value in metadata.items():
-            try:
-                decoded_data = base64.b64decode(value)
-                json_data = json.loads(decoded_data.decode("utf-8", errors="ignore"))
-                return json_data["name"]
-            except (base64.binascii.Error, json.JSONDecodeError):
-                continue
+    try:
+        with Image.open(file_path) as img:
+            metadata = img.info
+            for key, value in metadata.items():
+                try:
+                    decoded_data = base64.b64decode(value)
+                    json_data = json.loads(decoded_data.decode("utf-8", errors="ignore"))
+                    return json_data["name"]
+                except:
+                    continue
+    except IOError:
+        pass  # The file could not be read using PIL, fall back to manual parsing
+
+    # Fallback: manually parsing the PNG file
+    with open(file_path, 'rb') as f:
+        signature = f.read(8)
+        if signature != b'\x89\x50\x4e\x47\x0d\x0a\x1a\x0a':
+            raise ValueError("Not a valid PNG file.")
+
+        while True:
+            chunk_length_data = f.read(4)
+            if not chunk_length_data:
+                break
+
+            chunk_length = struct.unpack('>I', chunk_length_data)[0]
+            chunk_type = f.read(4).decode('ascii')
+            chunk_data = f.read(chunk_length)
+            f.read(4)  # Skip CRC
+            
+            if chunk_type in ['tEXt', 'zTXt', 'iTXt']:
+                try:
+                    try:
+                        print(f"Chunk data before decoding: {chunk_data}")
+                        return get_character_name(chunk_data)
+                    except Exception as e:
+                        print(f"Error decoding base64 data (type: {chunk_type}, data: {chunk_data}): {e}")
+                        continue
+                        
+                    json_data = json.loads(decoded_data.decode("utf-8", errors="ignore"))
+                    return json_data["name"]
+                except (base64.binascii.Error, json.JSONDecodeError):
+                    print(f"Error decoding chunk data (type: {chunk_type}, data: {chunk_data}): {e}")
+                    continue
+
     raise ValueError("Failed to extract name from the image file.")
 
 if len(sys.argv) > 1:
