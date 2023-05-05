@@ -46,8 +46,7 @@ def extract_name_from_metadata(file_path):
 
     raise ValueError("Failed to extract name from the image file.")
 
-if len(sys.argv) > 1:
-    file_path = sys.argv[1]
+def process_file(file_path):
     file_name, file_ext = os.path.splitext(file_path)
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -69,5 +68,19 @@ if len(sys.argv) > 1:
 
     except ValueError as error:
         logging.error(error)
+
+def process_all_files_in_directory():
+    for file_name in os.listdir():
+        if file_name.endswith('.png'):
+            logging.info(f"Processing file: {file_name}")
+            process_file(file_name)
+
+
+if len(sys.argv) > 1:
+    if sys.argv[1] == "--all":
+        process_all_files_in_directory()
+    else:
+        file_path = sys.argv[1]
+        process_file(file_path)
 else:
-    logging.error("Please provide a file path as an argument when running the script.")
+    logging.error("Please provide a file path as an argument or use the '--all' option to process all PNG files in the current directory.")
