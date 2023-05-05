@@ -1,15 +1,15 @@
 import os
 import sys
 import shutil
-from PIL import Image
 import base64
 import json
 import struct
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # emotions = ['admiration', 'amusement', 'anger', 'annoyance', 'approval', 'caring', 'confusion', 'curiosity', 'desire', 'disappointment', 'disapproval', 'disgust', 'embarrassment', 'excitement', 'fear', 'gratitude', 'grief', 'joy', 'love', 'nervousness', 'neutral', 'optimism', 'pride', 'realization', 'relief', 'remorse', 'sadness', 'surprise']
 emotions = ['anger', 'fear', 'joy', 'love', 'sadness', 'surprise']
-
-
 
 def get_character_name(chunk_data):
     prefix = b"chara\x00"
@@ -21,19 +21,6 @@ def get_character_name(chunk_data):
     return "Name not found"
 
 def extract_name_from_metadata(file_path):
-    try:
-        with Image.open(file_path) as img:
-            metadata = img.info
-            for key, value in metadata.items():
-                try:
-                    decoded_data = base64.b64decode(value)
-                    json_data = json.loads(decoded_data.decode("utf-8", errors="ignore"))
-                    return json_data["name"]
-                except:
-                    continue
-    except IOError:
-        pass  # The file could not be read using PIL, fall back to manual parsing
-
     # Fallback: manually parsing the PNG file
     with open(file_path, 'rb') as f:
         signature = f.read(8)
@@ -52,17 +39,9 @@ def extract_name_from_metadata(file_path):
             
             if chunk_type in ['tEXt', 'zTXt', 'iTXt']:
                 try:
-                    try:
-                        print(f"Chunk data before decoding: {chunk_data}")
-                        return get_character_name(chunk_data)
-                    except Exception as e:
-                        print(f"Error decoding base64 data (type: {chunk_type}, data: {chunk_data}): {e}")
-                        continue
-                        
-                    json_data = json.loads(decoded_data.decode("utf-8", errors="ignore"))
-                    return json_data["name"]
-                except (base64.binascii.Error, json.JSONDecodeError):
-                    print(f"Error decoding chunk data (type: {chunk_type}, data: {chunk_data}): {e}")
+                    return get_character_name(chunk_data)
+                except Exception as e:
+                    logging.warning(f"Error decoding base64 data (type: {chunk_type}, data: {chunk_data}): {e}")
                     continue
 
     raise ValueError("Failed to extract name from the image file.")
@@ -83,12 +62,12 @@ if len(sys.argv) > 1:
             new_file_name = f"{emotion}{file_ext}"
             new_file_path = os.path.join(folder_path, new_file_name)
             if os.path.exists(new_file_path):
-                print(f"File {new_file_name} already exists, skipping...")
+                logging.info(f"File {new_file_name} already exists, skipping...")
                 continue
             shutil.copy2(file_path, new_file_path)
-            print(f"Copy {i+1} created: {new_file_name}")
+            logging.info(f"Copy {i+1} created: {new_file_name}")
 
     except ValueError as error:
-        print(error)
+        logging.error(error)
 else:
-    print("Please drag and drop a file onto this script to copy it with different filenames.")
+    logging.error("Please provide a file path as an argument when running the script.")
